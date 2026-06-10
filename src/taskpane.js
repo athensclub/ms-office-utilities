@@ -27,14 +27,14 @@
   var POINTS_PER_INCH = 72;
 
   // Bullets ("•", "-", "▪", ...) get a small, fixed gap before their text.
-  var BULLET_BUFFER_INCHES = 0.18; // ~13 pt — one tight step
+  var BULLET_BUFFER_INCHES = 0.13; // ~9 pt — bullet glyph + a hair of breathing room
 
   // Numbered/lettered items ("1.", "1.1.1.", "a.") get a length-aware gap.
   // NUMBER_PER_CHAR ≈ the rendered width of one number glyph, so the buffer
   // grows just enough to clear the number string — which keeps the VISIBLE
   // gap between the number and its text constant (== NUMBER_BASE) no matter how
-  // long the number is. NUMBER_BASE is therefore the actual "one step" gap.
-  var NUMBER_BASE_INCHES = 0.12; // ~9 pt — the constant gap after the number
+  // long the number is. NUMBER_BASE is therefore the actual gap after the number.
+  var NUMBER_BASE_INCHES = 0.06; // ~4 pt — tight gap after the number
   var NUMBER_PER_CHAR_INCHES = 0.07; // ~5 pt/char ≈ glyph width at ~11pt font
 
   // ---------------------------------------------------------------------------
@@ -143,6 +143,12 @@
           var skipped = 0;
           var maxLevel = 0;
 
+          // Track the previous list item so we can re-parent "orphan" bullets.
+          // In chaotic docs, Word often reports stray bullets at level 0 even
+          // though they visually belong under the (deeper) item above them.
+          var prevLevel = -1; // effective level of the previous list item
+          var prevWasBullet = false;
+
           for (var i = 0; i < items.length; i++) {
             var li = listItems[i];
 
@@ -152,8 +158,29 @@
               continue;
             }
 
-            var level = li.level || 0; // 0-indexed depth
+            var bullet = isBulletString(li.listString);
+            var wordLevel = li.level || 0; // 0-indexed depth reported by Word
+
+            // Effective level:
+            //  - Numbers/letters: trust Word's level (it's reliable for them).
+            //  - Bullets: place ONE layer below the item directly above.
+            //      * first bullet after a number  -> prevLevel + 1
+            //      * bullet after a bullet         -> same level (siblings)
+            //    Fall back to Word's level only when there's no item above.
+            var level;
+            if (!bullet) {
+              level = wordLevel;
+            } else if (prevLevel < 0) {
+              level = wordLevel; // first item in selection, nothing to nest under
+            } else if (prevWasBullet) {
+              level = prevLevel; // consecutive bullets are siblings
+            } else {
+              level = prevLevel + 1; // first bullet under a numbered/lettered item
+            }
+
             if (level > maxLevel) maxLevel = level;
+            prevLevel = level;
+            prevWasBullet = bullet;
 
             // Alignment = where this layer's number/bullet sits.
             // It must equal the text indent of the layer directly above it.
