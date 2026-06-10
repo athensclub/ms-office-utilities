@@ -150,8 +150,22 @@ autocomplete) without ever emitting compiled output (`tsconfig.json` sets
 - Requires the **WordApi 1.3** requirement set (for `leftIndent`,
   `firstLineIndent`, and `listItem`), satisfied by current Word on the web.
 - Uses the XML manifest so it sideloads directly via *Upload My Add-in*.
-- The icons in `assets/` are simple placeholders — replace them with your own
-  16/32/80 px PNGs for production.
+
+### Logo & icons
+
+The logo is defined as SVG and rasterized to the PNG sizes Office needs:
+
+- `assets/logo.svg` — the detailed mark (a nested list whose layers' markers
+  align under the text above, with faint guides). Used for `icon-32`/`icon-80`
+  and shown in the task pane header.
+- `assets/logo-small.svg` — a bold, simplified 3-row glyph that stays legible
+  at 16 px. Used for `icon-16`.
+
+Regenerate the PNGs after editing either SVG (macOS; uses QuickLook + sips):
+
+```bash
+npm run icons
+```
 
 ## License
 

@@ -1,0 +1,31 @@
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Perfect Align logo">
+  <defs>
+    <linearGradient id="pa-bg" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3AA0FF"/>
+      <stop offset="1" stop-color="#0062B1"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded tile -->
+  <rect x="0" y="0" width="80" height="80" rx="17" fill="url(#pa-bg)"/>
+
+  <!-- Alignment guides: a marker of each layer lines up under the text of the
+       layer above. These faint vertical lines visualise that "perfect align". -->
+  <g stroke="#FFFFFF" stroke-opacity="0.5" stroke-width="1.6" stroke-dasharray="2.4 2.8" stroke-linecap="round">
+    <line x1="28" y1="23" x2="28" y2="40"/>
+    <line x1="38" y1="40" x2="38" y2="57"/>
+  </g>
+
+  <!-- Three nested layers: white marker + text bar, each indented one step. -->
+  <g fill="#FFFFFF">
+    <!-- Level 0 -->
+    <circle cx="20" cy="23" r="3.4"/>
+    <rect x="28" y="20.5" width="36" height="5" rx="2.5"/>
+    <!-- Level 1 (marker sits under level 0's text start, x=28) -->
+    <circle cx="28" cy="40" r="3.4"/>
+    <rect x="38" y="37.5" width="26" height="5" rx="2.5"/>
+    <!-- Level 2 (marker sits under level 1's text start, x=38) -->
+    <circle cx="38" cy="57" r="3.4"/>
+    <rect x="48" y="54.5" width="16" height="5" rx="2.5"/>
+  </g>
+</svg>

@@ -7,6 +7,7 @@
   "license": "MIT",
   "scripts": {
     "certs": "office-addin-dev-certs install",
+    "icons": "bash scripts/build-icons.sh",
     "start": "office-addin-dev-certs install && node server.js",
     "serve": "node server.js",
     "test": "node --test",

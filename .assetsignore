@@ -1,6 +1,7 @@
 node_modules
 .git
 test
+scripts
 server.js
 package.json
 package-lock.json

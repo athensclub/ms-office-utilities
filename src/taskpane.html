@@ -38,6 +38,15 @@
       font-weight: 600;
       margin: 0 0 4px;
     }
+    h1.brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    h1.brand img {
+      display: block;
+      border-radius: 6px;
+    }
 
     p.subtitle {
       margin: 0 0 20px;
@@ -153,7 +162,10 @@
   </style>
 </head>
 <body>
-  <h1>Perfect Align</h1>
+  <h1 class="brand">
+    <img src="../assets/logo.svg" alt="" width="28" height="28" />
+    Perfect Align
+  </h1>
   <p class="subtitle">
     Select a mixed nested list, then align every layer so its bullet or number
     sits exactly under the text of the layer above it.

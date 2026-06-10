@@ -1,0 +1,23 @@
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Perfect Align logo (small)">
+  <defs>
+    <linearGradient id="pa-bg-s" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3AA0FF"/>
+      <stop offset="1" stop-color="#0062B1"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="80" height="80" rx="17" fill="url(#pa-bg-s)"/>
+
+  <!-- Simplified, bold list glyph that stays legible at 16px: 3 markers + bars,
+       no dashed guides, generous spacing. -->
+  <g fill="#FFFFFF">
+    <circle cx="23" cy="26" r="5"/>
+    <rect x="35" y="22" width="30" height="8" rx="4"/>
+
+    <circle cx="23" cy="40" r="5"/>
+    <rect x="35" y="36" width="30" height="8" rx="4"/>
+
+    <circle cx="23" cy="54" r="5"/>
+    <rect x="35" y="50" width="30" height="8" rx="4"/>
+  </g>
+</svg>
