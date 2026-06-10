@@ -286,27 +286,61 @@
   }
 
   /**
-   * Read the left indent of the first paragraph in the current selection
-   * (e.g. a heading) and adopt it as the starting indent for the list.
+   * Read the indent of the first paragraph in the current selection (e.g. a
+   * heading or intro line) and adopt it as the starting indent for the list.
+   *
+   * The visible start of a paragraph's first line is leftIndent + firstLineIndent:
+   *   - a left-indented block:      leftIndent > 0, firstLineIndent = 0
+   *   - a first-line-indented line: leftIndent = 0, firstLineIndent > 0  (this case
+   *                                 is why reading leftIndent alone returned 0)
+   *   - a hanging indent (a list):  leftIndent > 0, firstLineIndent < 0  -> marker pos
+   * Summing them gives the true horizontal start to match against.
    */
   function copyIndentFromSelection() {
     setStatus("Reading indent from selection…", "");
     Word.run(function (context) {
       var para = context.document.getSelection().paragraphs.getFirstOrNullObject();
-      para.load("leftIndent,isNullObject");
+      para.load("leftIndent,firstLineIndent,isNullObject");
+      // Also peek at list membership to give a helpful message if the indent
+      // turns out to come from list formatting (not paragraph indents).
+      var li = para.listItemOrNullObject;
+      li.load("isNullObject");
       return context.sync().then(function () {
         if (para.isNullObject) {
           setStatus("Select a paragraph (e.g. the heading) first.", "warn");
           return;
         }
-        // Clamp to the slider's range so the thumb stays in view.
-        var pts = Math.max(0, Math.min(144, para.leftIndent || 0));
+
+        var left = para.leftIndent || 0;
+        var first = para.firstLineIndent || 0;
+        var start = left + first; // where the first line visually begins
+
+        // Clamp into the slider's range so the thumb stays in view.
+        var slider = document.getElementById("indent-slider");
+        var max = slider ? Number(slider.max) : 216;
+        var pts = Math.max(0, Math.min(max, start));
         baseIndentPoints = pts;
         updateIndentLabel();
+
+        if (start <= 0 && !li.isNullObject) {
+          // Indent comes from the list definition, not paragraph indents.
+          setStatus(
+            "That paragraph's indent comes from its list formatting, which " +
+              "can't be read directly. Set the starting indent with the slider " +
+              "instead.",
+            "warn"
+          );
+          return;
+        }
+
         setStatus(
-          'Starting indent set to ' +
+          "Starting indent set to " +
             (pts / POINTS_PER_INCH).toFixed(2) +
-            '" from the selection. Now select your list and click Align.',
+            '" (left ' +
+            (left / POINTS_PER_INCH).toFixed(2) +
+            '" + first-line ' +
+            (first / POINTS_PER_INCH).toFixed(2) +
+            '"). Now select your list and click Align.',
           "ok"
         );
       });
