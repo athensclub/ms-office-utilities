@@ -7,6 +7,7 @@ package-lock.json
 bun.lock
 bun.lockb
 README.md
+LICENSE
 .gitignore
 .wranglerignore
 .assetsignore

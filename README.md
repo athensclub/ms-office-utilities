@@ -106,3 +106,7 @@ committing any change to the algorithm.
 - Uses the XML manifest so it sideloads directly via *Upload My Add-in*.
 - The icons in `assets/` are simple placeholders — replace them with your own
   16/32/80 px PNGs for production.
+
+## License
+
+[MIT](LICENSE) © 2026 athensclub
