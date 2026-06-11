@@ -28,15 +28,17 @@
   var POINTS_PER_INCH = 72;
 
   // Bullets ("•", "-", "▪", ...) get a small, fixed gap before their text.
-  var BULLET_BUFFER_INCHES = 0.11; // ~8 pt — bullet glyph + a hair of breathing room
+  var BULLET_BUFFER_INCHES = 0.18; // ~13 pt — comfortable gap after the bullet
 
   // Numbered/lettered items ("1.", "1.1.1.", "a.") get a length-aware gap.
-  // NUMBER_PER_CHAR ≈ the rendered width of one number glyph, so the buffer
-  // grows just enough to clear the number string — which keeps the VISIBLE
-  // gap between the number and its text constant (== NUMBER_BASE) no matter how
-  // long the number is. NUMBER_BASE is therefore the actual gap after the number.
+  // NUMBER_PER_CHAR must be >= the rendered width of one number glyph, so the
+  // buffer always CLEARS the number string. If it's too small, Word pushes the
+  // number's own text past our leftIndent — and any child item that aligns to
+  // that leftIndent ends up to the LEFT of where the text actually rendered.
+  // (Aptos / display fonts have wide digits, so this is set generously.)
+  // The VISIBLE gap stays ~= NUMBER_BASE regardless of number length.
   var NUMBER_BASE_INCHES = 0.04; // ~3 pt — very tight gap after the number
-  var NUMBER_PER_CHAR_INCHES = 0.07; // ~5 pt/char ≈ glyph width at ~11pt font
+  var NUMBER_PER_CHAR_INCHES = 0.1; // ~7 pt/char — clears wide digits (e.g. Aptos)
 
   // The configurable starting indent for the outermost layer, in POINTS.
   // Driven by the slider / "copy from selection" controls in the task pane.
