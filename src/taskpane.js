@@ -192,6 +192,8 @@
     // though they visually belong under the (deeper) item above them.
     var prevLevel = -1; // effective level of the previous list item
     var prevWasBullet = false;
+    var bulletRunAnchor = 0; // effective level the current bullet run started at
+    var prevBulletWordLevel = 0; // Word's level for the previous bullet
 
     for (var i = 0; i < paras.length; i++) {
       var p = paras[i];
@@ -208,19 +210,29 @@
 
       // Effective level:
       //  - Numbers/letters: trust Word's level (it's reliable for them).
-      //  - Bullets: place ONE layer below the item directly above.
-      //      * first bullet after a number  -> prevLevel + 1
-      //      * bullet after a bullet         -> same level (siblings)
-      //    Fall back to Word's level only when there's no item above.
+      //  - Bullets: Word's ABSOLUTE bullet level is unreliable (stray bullets
+      //    often report level 0), but the level DELTA between consecutive
+      //    bullets is reliable. So:
+      //      * first bullet of a run  -> one layer below the item above
+      //        (the run "anchor"); record its Word level as the delta baseline.
+      //      * later bullets in a run -> follow Word's level delta, so sub-
+      //        bullets nest deeper and de-indented bullets pop back out — but
+      //        never shallower than the run anchor (stay within the parent).
       var level;
       if (!bullet) {
         level = wordLevel;
       } else if (prevLevel < 0) {
         level = wordLevel; // first item in selection, nothing to nest under
-      } else if (prevWasBullet) {
-        level = prevLevel; // consecutive bullets are siblings
-      } else {
+        bulletRunAnchor = level;
+        prevBulletWordLevel = wordLevel;
+      } else if (!prevWasBullet) {
         level = prevLevel + 1; // first bullet under a numbered/lettered item
+        bulletRunAnchor = level;
+        prevBulletWordLevel = wordLevel;
+      } else {
+        level = prevLevel + (wordLevel - prevBulletWordLevel); // follow the delta
+        if (level < bulletRunAnchor) level = bulletRunAnchor; // floor at the anchor
+        prevBulletWordLevel = wordLevel;
       }
 
       if (level > maxLevel) maxLevel = level;

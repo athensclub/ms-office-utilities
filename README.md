@@ -52,8 +52,11 @@ For each selected paragraph (1 inch = 72 points):
 
 The outermost layer can be shifted to a **starting indent** (slider, or *Copy
 indent from selection* to match a heading); the whole list shifts with it while
-keeping every relative alignment. Bullets that Word reports at a shallow level
-are re-parented one layer below the item above them.
+keeping every relative alignment. Bullets are handled specially: Word's
+absolute bullet level is unreliable (stray bullets often report level 0), so a
+bullet run is anchored one layer below the item it follows, and within the run
+the bullets follow Word's level *delta* — sub-bullets nest deeper and
+de-indented bullets pop back out, never shallower than the run's anchor.
 
 Paragraphs that aren't part of a list are detected via `listItemOrNullObject`
 and left untouched.

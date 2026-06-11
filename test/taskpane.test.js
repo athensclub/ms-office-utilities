@@ -156,7 +156,7 @@ test("computeLayout: orphan bullets (Word level 0) nest under the item above", (
   }
 });
 
-test("computeLayout: consecutive bullets are siblings (same level)", () => {
+test("computeLayout: consecutive bullets at the same Word level stay siblings", () => {
   const { results } = computeLayout([
     num("2.", 0),
     bul("•", 0),
@@ -165,6 +165,45 @@ test("computeLayout: consecutive bullets are siblings (same level)", () => {
   assert.equal(results[1].level, results[2].level);
   assert.ok(approx(results[1].alignment, results[2].alignment));
   assert.ok(approx(results[1].textIndent, results[2].textIndent));
+});
+
+test("computeLayout: a bullet nested deeper in Word nests one layer deeper", () => {
+  // A is a bullet under the number; B is indented one more in Word (level 1).
+  const { results } = computeLayout([
+    num("2.", 0), // eff 0
+    bul("•", 0), // first bullet -> eff 1 (anchor), word baseline 0
+    bul("•", 1), // delta +1 -> eff 2
+  ]);
+  assert.equal(results[1].level, 1);
+  assert.equal(results[2].level, 2);
+  // The deeper bullet's marker aligns under the shallower bullet's text.
+  assert.ok(approx(results[2].alignment, results[1].textIndent));
+});
+
+test("computeLayout: a de-indented bullet pops back out (delta down)", () => {
+  const { results } = computeLayout([
+    num("2.", 0), // eff 0
+    bul("•", 0), // eff 1 (anchor)
+    bul("•", 1), // eff 2 (sub-bullet)
+    bul("•", 1), // eff 2 (sibling sub-bullet)
+    bul("•", 0), // delta -1 -> eff 1 (back out to the anchor level)
+  ]);
+  assert.deepEqual(
+    results.map((r) => r.level),
+    [0, 1, 2, 2, 1]
+  );
+});
+
+test("computeLayout: bullets never pop out shallower than their run anchor", () => {
+  // Even if Word reports a bullet shallower than the run's first bullet, it is
+  // floored at the anchor so it stays within the numbered parent's subtree.
+  const { results } = computeLayout([
+    num("2.2.1.", 2), // eff 2
+    bul("•", 1), // first bullet -> eff 3 (anchor), word baseline 1
+    bul("•", 0), // delta -1 -> 2, but floored at anchor 3
+  ]);
+  assert.equal(results[1].level, 3);
+  assert.equal(results[2].level, 3);
 });
 
 test("computeLayout: a leading bullet with no item above falls back to its Word level", () => {
