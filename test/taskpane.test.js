@@ -228,6 +228,35 @@ test("computeLayout: a restart-numbered list nested under a bullet nests under i
   );
 });
 
+test("computeLayout: an ordinal whose number resets pops out one layer", () => {
+  // 2. -> • -> 1..5 (nested) -> 3. (number went 5->3 => outer list, pop out)
+  const { results } = computeLayout([
+    num("2.", 0), // 0
+    bul("•", 0), // 1
+    num("1.", 0), // 2
+    num("2.", 0), // 2
+    num("5.", 0), // 2 (skipped ahead is still a continuation)
+    num("3.", 0), // 5 <= prev(5)? 3<=5 -> pop to 1
+  ]);
+  assert.deepEqual(
+    results.map((r) => r.level),
+    [0, 1, 2, 2, 2, 1]
+  );
+});
+
+test("computeLayout: ascending ordinals (even with a skip) stay siblings", () => {
+  const { results } = computeLayout([
+    num("2.", 0),
+    bul("•", 0),
+    num("1.", 0), // 2
+    num("3.", 0), // skip ahead 1->3, still ascending -> sibling (2)
+  ]);
+  assert.deepEqual(
+    results.map((r) => r.level),
+    [0, 1, 2, 2]
+  );
+});
+
 test("computeLayout: top-level numbered siblings stay at the same level", () => {
   const { results } = computeLayout([num("1.", 0), num("2.", 0), num("3.", 0)]);
   assert.deepEqual(

@@ -61,7 +61,9 @@ trusted; **bullets** are anchored one layer below the item they follow and then
 follow Word's level *delta* (sub-bullets nest, de-indented bullets pop out,
 floored at the anchor); **single-segment numbers** (`1.`, `a.`) are ambiguous
 (a restart list looks identical to a top-level one), so a numbered list that
-follows a bullet nests one layer under it and consecutive numbers stay siblings.
+follows a bullet nests one layer under it, ascending numbers stay siblings, and
+a number that resets/decreases (e.g. `5.` then `3.`) pops out one layer as the
+start of an outer list.
 
 Paragraphs that aren't part of a list are detected via `listItemOrNullObject`
 and left untouched.

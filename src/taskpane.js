@@ -198,6 +198,23 @@
   }
 
   /**
+   * The numeric value of a single-segment ordinal marker: "3." -> 3, "a." -> 1,
+   * "10)" -> 10. Used to detect when a numbered run breaks (e.g. 5 then 3),
+   * which means the new item belongs to an OUTER list, not a continuation.
+   * Returns null when it can't be determined.
+   * @param {string} listString
+   * @returns {number|null}
+   */
+  function ordinalValue(listString) {
+    var t = (listString || "").trim();
+    var digits = t.match(/\d+/);
+    if (digits) return parseInt(digits[0], 10);
+    var letter = t.match(/[A-Za-z]/);
+    if (letter) return letter[0].toLowerCase().charCodeAt(0) - 96; // a=1, b=2, ...
+    return null;
+  }
+
+  /**
    * Compute the dynamic text buffer (in points) that separates the
    * number/bullet position from the text start.
    *   - Bullet: fixed small buffer.
@@ -266,6 +283,7 @@
     var prevKind = null; // "hard" | "bullet" | "ordinal" (see classification below)
     var bulletRunAnchor = 0; // effective level the current bullet run started at
     var prevBulletWordLevel = 0; // Word's level for the previous bullet
+    var prevOrdinalValue = null; // numeric value of the previous ordinal (5 in "5.")
 
     for (var i = 0; i < paras.length; i++) {
       var p = paras[i];
@@ -291,6 +309,7 @@
         : listSegmentCount(p.listString) >= 2
         ? "hard"
         : "ordinal";
+      var ordVal = kind === "ordinal" ? ordinalValue(p.listString) : null;
 
       // Effective level:
       var level;
@@ -321,7 +340,17 @@
       } else {
         // ordinal: single-segment number/letter ("1.", "2.", "a.").
         if (prevKind === "ordinal") {
-          level = prevLevel; // consecutive 1, 2, 3 are siblings
+          if (
+            ordVal !== null &&
+            prevOrdinalValue !== null &&
+            ordVal <= prevOrdinalValue
+          ) {
+            // The number reset/decreased (e.g. 5 -> 3): not a continuation of
+            // this run, so it belongs to an outer list -> pop out one layer.
+            level = prevLevel > 0 ? prevLevel - 1 : 0;
+          } else {
+            level = prevLevel; // ascending sequence -> sibling
+          }
         } else if (prevKind === "bullet") {
           level = prevLevel + 1; // a numbered list nested under a bullet
         } else {
@@ -332,6 +361,7 @@
       if (level > maxLevel) maxLevel = level;
       prevLevel = level;
       prevKind = kind;
+      if (kind === "ordinal") prevOrdinalValue = ordVal;
 
       // Alignment = where this layer's number/bullet sits.
       // It must equal the text indent of the layer directly above it.
