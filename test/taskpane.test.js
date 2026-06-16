@@ -185,6 +185,37 @@ test("computeLayout: bullets follow Word ilvl within the run (o at ilvl 0 sits o
   );
 });
 
+test("computeLayout: a big ilvl jump (1 -> 8) compresses to one level deeper", () => {
+  // Real-doc case: tabbing the inner ▪ bullets demoted them to ilvl 8 (numId
+  // 31), while the • bullets are ilvl 1. The magnitude is meaningless; the ▪
+  // should sit just one level under the •.
+  const { results } = computeLayout([
+    num("2.", 0), // 0
+    { isList: true, level: 1, listString: "•" }, // 1
+    { isList: true, level: 1, listString: "•" }, // 1
+    { isList: true, level: 8, listString: "▪" }, // one deeper -> 2 (not 9)
+    { isList: true, level: 8, listString: "▪" }, // 2
+    { isList: true, level: 8, listString: "▪" }, // 2
+  ]);
+  assert.deepEqual(
+    results.map((r) => r.level),
+    [0, 1, 1, 2, 2, 2]
+  );
+});
+
+test("computeLayout: bullet levels track in and back out across ilvl jumps", () => {
+  const { results } = computeLayout([
+    num("1.", 0), // 0
+    { isList: true, level: 1, listString: "•" }, // 1
+    { isList: true, level: 8, listString: "▪" }, // 2 (deeper)
+    { isList: true, level: 1, listString: "•" }, // back to • depth -> 1
+  ]);
+  assert.deepEqual(
+    results.map((r) => r.level),
+    [0, 1, 2, 1]
+  );
+});
+
 test("computeLayout: a bullet nested deeper in Word nests one layer deeper", () => {
   // A is a bullet under the number; B is indented one more in Word (level 1).
   const { results } = computeLayout([

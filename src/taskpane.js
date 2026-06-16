@@ -43,6 +43,7 @@
   // The configurable starting indent for the outermost layer, in POINTS.
   // Driven by the slider / "copy from selection" controls in the task pane.
   var baseIndentPoints = 0;
+  var lastShiftPoints = 0; // slider value already applied as a live translate
   var liveAlignTimer = null; // debounce handle for real-time slider dragging
 
   // ---------------------------------------------------------------------------
@@ -160,14 +161,14 @@
           alignSelection({ silent: false });
         });
 
-        // Starting-indent slider: update the label + live-preview on drag,
-        // and commit a (debounced) re-align so the change is visible in real time.
+        // Starting-indent slider: live-translate the selection on drag (shifts
+        // only the starting indent; relative/hanging indents are untouched).
         var slider = getInput("indent-slider");
         if (slider) {
           slider.addEventListener("input", function () {
             baseIndentPoints = Number(slider.value);
             updateIndentLabel();
-            scheduleLiveAlign();
+            scheduleLiveShift();
           });
         }
 
@@ -318,10 +319,12 @@
     // level 0 even though they visually belong under the (deeper) item above.
     var prevLevel = -1; // effective level of the previous list item
     var prevKind = null; // "hard" | "bullet" | "ordinal" (see classification below)
-    // A bullet run is anchored one level below the item it follows; within the
-    // run we TRUST Word's ilvl relative to that anchor (deeper ilvl -> deeper,
-    // shallower -> outward). bulletRunBase maps Word ilvl -> effective level.
-    var bulletRunBase = 0; // effectiveLevel = bulletRunBase + wordLevel
+    // A bullet run is anchored one level below the item it follows. Within the
+    // run we trust the DIRECTION of Word's ilvl but COMPRESS its magnitude via a
+    // stack: a deeper ilvl is one level in, a shallower ilvl one level out — so
+    // a tab that jumps ilvl 1 -> 8 still means just "one deeper", and an "o"
+    // list that restarts at ilvl 0 after a "•" at ilvl 1 moves one level out.
+    var bulletStack = []; // [{ ilvl, eff }] from outer (small eff) to inner
     var bulletRunParentLevel = 0; // floor: don't outdent past the run's parent
     // Open numbered runs: effective level -> {value, letter} of the last ordinal
     // seen there. Lets "4." return to the level of an open "…3." run even when
@@ -362,27 +365,39 @@
         // First list item in the selection: trust Word's level.
         level = wordLevel;
         if (bullet) {
-          bulletRunBase = 0; // first item: effective level == its own ilvl
           bulletRunParentLevel = 0;
+          bulletStack = [{ ilvl: wordLevel, eff: level }];
         }
       } else if (kind === "hard") {
         level = wordLevel; // dotted numbers carry a reliable absolute level
       } else if (kind === "bullet") {
-        // Trust Word's ilvl, but relative to where the bullet run starts:
-        //   * first bullet of a run -> one layer below the item above; this
-        //     fixes the anchor and maps the bullet's ilvl onto it.
-        //   * later bullets -> bulletRunBase + their ilvl, so a deeper ilvl
-        //     nests and a shallower one (e.g. an "o" list at ilvl 0 after a
-        //     "•" at ilvl 1) moves outward — without ever outdenting past the
-        //     item the run hangs under.
         if (prevKind !== "bullet") {
+          // Start a bullet run one level below the item above (the anchor).
           level = prevLevel + 1;
-          bulletRunBase = level - wordLevel;
           bulletRunParentLevel = prevLevel;
+          bulletStack = [{ ilvl: wordLevel, eff: level }];
         } else {
-          level = bulletRunBase + wordLevel;
-          if (level < bulletRunParentLevel) level = bulletRunParentLevel;
-          if (level < 0) level = 0;
+          // Pop entries deeper than this ilvl, then place relative to the top.
+          var lastPoppedEff = -1;
+          while (
+            bulletStack.length &&
+            bulletStack[bulletStack.length - 1].ilvl > wordLevel
+          ) {
+            lastPoppedEff = bulletStack.pop().eff;
+          }
+          var top = bulletStack[bulletStack.length - 1];
+          if (top && top.ilvl === wordLevel) {
+            level = top.eff; // sibling at the same depth
+          } else if (top && top.ilvl < wordLevel) {
+            level = top.eff + 1; // one level deeper
+            bulletStack.push({ ilvl: wordLevel, eff: level });
+          } else {
+            // shallower than everything in the run -> one level outward
+            level = (lastPoppedEff >= 0 ? lastPoppedEff : prevLevel) - 1;
+            if (level < bulletRunParentLevel) level = bulletRunParentLevel;
+            if (level < 0) level = 0;
+            bulletStack.push({ ilvl: wordLevel, eff: level });
+          }
         }
       } else {
         // ordinal: single-segment number/letter ("1.", "2.", "a.").
@@ -497,15 +512,47 @@
   }
 
   /**
-   * Debounced re-align while dragging the slider, so the document updates in
-   * (near) real time without firing a Word.run on every pixel of movement.
+   * Debounced live TRANSLATE while dragging the slider: shift the whole
+   * selection by the change in the slider value, without re-running the
+   * alignment. This only moves each paragraph's leftIndent (its starting
+   * position) — relative indents / hanging indents are left untouched.
    */
-  function scheduleLiveAlign() {
+  function scheduleLiveShift() {
     if (liveAlignTimer) clearTimeout(liveAlignTimer);
     liveAlignTimer = setTimeout(function () {
       liveAlignTimer = null;
-      alignSelection({ silent: true });
+      var delta = baseIndentPoints - lastShiftPoints;
+      if (delta === 0) return;
+      shiftSelectionIndent(delta);
+      lastShiftPoints = baseIndentPoints;
     }, 120);
+  }
+
+  /**
+   * Shift every selected paragraph's left indent by `deltaPoints`, leaving
+   * firstLineIndent (and thus the marker hang / relative structure) untouched —
+   * the whole selection translates horizontally.
+   * @param {number} deltaPoints
+   */
+  function shiftSelectionIndent(deltaPoints) {
+    Word.run(function (context) {
+      var paragraphs = context.document.getSelection().paragraphs;
+      paragraphs.load("items");
+      return context.sync().then(function () {
+        var items = paragraphs.items;
+        if (!items || items.length === 0) return context.sync();
+        items.forEach(function (p) {
+          p.load("leftIndent");
+        });
+        return context.sync().then(function () {
+          items.forEach(function (p) {
+            var next = (p.leftIndent || 0) + deltaPoints;
+            p.leftIndent = next < 0 ? 0 : next;
+          });
+          return context.sync();
+        });
+      });
+    }).catch(reportError);
   }
 
   /**
@@ -543,6 +590,7 @@
         var max = slider ? Number(slider.max) : 216;
         var pts = Math.max(0, Math.min(max, start));
         baseIndentPoints = pts;
+        lastShiftPoints = pts; // copying sets the value; it doesn't translate
         updateIndentLabel();
 
         if (start <= 0 && !li.isNullObject) {
@@ -678,6 +726,9 @@
         });
       });
     }).catch(reportError).then(function () {
+      // After a full align the selection's level 0 sits at baseIndentPoints, so
+      // sync the slider's translate baseline (a later drag shifts from here).
+      lastShiftPoints = baseIndentPoints;
       if (!silent) button.disabled = false;
     });
   }

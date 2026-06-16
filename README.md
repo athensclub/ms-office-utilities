@@ -53,9 +53,11 @@ Because the buffer is the *exact* marker width plus a fixed gap, the number's
 text always lands at `leftIndent`, so a child marker (aligned to that
 `leftIndent`) sits precisely under it — no per-font tuning, no drift.
 
-The outermost layer can be shifted to a **starting indent** (slider, or *Copy
-indent from selection* to match a heading); the whole list shifts with it while
-keeping every relative alignment. Markers are classified to handle Word's
+A **starting-indent** slider live-*translates* the whole selection left/right —
+it shifts only each paragraph's `leftIndent` (its starting position) and leaves
+the relative/hanging indents untouched, so it never re-flows a layout you've
+already tuned. *Copy indent from selection* reads a heading's indent into the
+slider. Markers are classified to handle Word's
 unreliable levels: **dotted numbers** (`2.1.1.`) carry their own depth and are
 trusted; **bullets** are anchored one layer below the item they follow, then
 trust Word's ilvl *relative to that anchor* — a deeper ilvl nests, a shallower
