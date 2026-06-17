@@ -809,23 +809,25 @@
    */
   function applyStylePreservingFormat(styleName) {
     setStatus("Applying " + styleName + "…", "");
+
+    // Plain-data snapshot shared between the two passes (proxies don't survive
+    // across Word.run calls, but plain JS does).
+    var saved = null;
+
+    // Pass 1: snapshot indents + list (id/level), then apply the style.
     Word.run(function (context) {
       var paragraphs = context.document.getSelection().paragraphs;
       paragraphs.load("items");
       return context.sync().then(function () {
         var items = paragraphs.items;
-        if (!items || items.length === 0) {
-          setStatus("No text is selected. Highlight some paragraphs first.", "warn");
-          return context.sync();
-        }
-        // 1) Snapshot indents + list membership (id + level) before the change.
+        if (!items || items.length === 0) return context.sync();
         items.forEach(function (p) {
           p.load("leftIndent,firstLineIndent");
           p.listOrNullObject.load("id,isNullObject");
           p.listItemOrNullObject.load("level,isNullObject");
         });
         return context.sync().then(function () {
-          var saved = items.map(function (p) {
+          saved = items.map(function (p) {
             var inList = !p.listOrNullObject.isNullObject;
             return {
               left: p.leftIndent || 0,
@@ -837,19 +839,34 @@
                 : p.listItemOrNullObject.level || 0,
             };
           });
-          // 2) Apply the style.
           items.forEach(function (p) {
             p.style = styleName;
           });
+          return context.sync();
+        });
+      });
+    })
+      .then(function () {
+        if (!saved) {
+          setStatus("No text is selected. Highlight some paragraphs first.", "warn");
+          return;
+        }
+        // Pass 2: in a FRESH context (so list proxies aren't the ones the style
+        // change invalidated), restore numbering/indent.
+        return Word.run(function (context) {
+          var paragraphs = context.document.getSelection().paragraphs;
+          paragraphs.load("items");
           return context.sync().then(function () {
-            // 3) See whether the style dropped each paragraph's list membership.
-            items.forEach(function (p) {
-              p.listItemOrNullObject.load("isNullObject");
-            });
+            var items = paragraphs.items;
+            var n = Math.min(items.length, saved.length);
+            for (var k = 0; k < n; k++) {
+              items[k].listItemOrNullObject.load("isNullObject");
+            }
             return context.sync().then(function () {
               var reattached = 0;
-              items.forEach(function (p, i) {
+              for (var i = 0; i < n; i++) {
                 var s = saved[i];
+                var p = items[i];
                 var stillInList = !p.listItemOrNullObject.isNullObject;
                 if (s.inList && !stillInList && s.listId != null) {
                   // Re-join the original list -> restores number + list indent.
@@ -860,15 +877,15 @@
                   p.leftIndent = s.left;
                   p.firstLineIndent = s.first;
                 }
-              });
+              }
               return context.sync().then(function () {
                 setStatus(
                   "Applied " +
                     styleName +
                     " to " +
-                    items.length +
+                    n +
                     " paragraph" +
-                    (items.length === 1 ? "" : "s") +
+                    (n === 1 ? "" : "s") +
                     ", keeping indent" +
                     (reattached ? " and restoring the list numbering" : "") +
                     ".",
@@ -878,8 +895,8 @@
             });
           });
         });
-      });
-    }).catch(reportError);
+      })
+      .catch(reportError);
   }
 
   /** Shared error reporter for Office/OfficeExtension failures. */
