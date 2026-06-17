@@ -799,10 +799,12 @@
 
   /**
    * Apply a paragraph style (by its display name) to the selection while
-   * PRESERVING each paragraph's indent and list. Word's built-in style apply
-   * resets indentation (and can drop numbering); here we snapshot
-   * leftIndent/firstLineIndent, set the style, then restore them. Direct list
-   * numbering/bullets are kept across a programmatic style change.
+   * PRESERVING each paragraph's number/bullet and indent. Changing a paragraph's
+   * style resets indentation and — for style/list-linked numbering like a "4.1."
+   * heading — drops the number. We snapshot each paragraph's list (id + level)
+   * and indents, apply the style, then: if the style dropped the list, re-attach
+   * it (which restores the number AND its indent); for non-list paragraphs we
+   * restore the saved direct indent.
    * @param {string} styleName the style's display name (Style.nameLocal)
    */
   function applyStylePreservingFormat(styleName) {
@@ -816,35 +818,63 @@
           setStatus("No text is selected. Highlight some paragraphs first.", "warn");
           return context.sync();
         }
-        // 1) Snapshot the indents the style is about to override.
+        // 1) Snapshot indents + list membership (id + level) before the change.
         items.forEach(function (p) {
           p.load("leftIndent,firstLineIndent");
+          p.listOrNullObject.load("id,isNullObject");
+          p.listItemOrNullObject.load("level,isNullObject");
         });
         return context.sync().then(function () {
           var saved = items.map(function (p) {
-            return { left: p.leftIndent || 0, first: p.firstLineIndent || 0 };
+            var inList = !p.listOrNullObject.isNullObject;
+            return {
+              left: p.leftIndent || 0,
+              first: p.firstLineIndent || 0,
+              inList: inList,
+              listId: inList ? p.listOrNullObject.id : null,
+              level: p.listItemOrNullObject.isNullObject
+                ? 0
+                : p.listItemOrNullObject.level || 0,
+            };
           });
-          // 2) Apply the style by name.
+          // 2) Apply the style.
           items.forEach(function (p) {
             p.style = styleName;
           });
           return context.sync().then(function () {
-            // 3) Restore the indents (numbering/bullets are kept automatically).
-            items.forEach(function (p, i) {
-              p.leftIndent = saved[i].left;
-              p.firstLineIndent = saved[i].first;
+            // 3) See whether the style dropped each paragraph's list membership.
+            items.forEach(function (p) {
+              p.listItemOrNullObject.load("isNullObject");
             });
             return context.sync().then(function () {
-              setStatus(
-                "Applied " +
-                  styleName +
-                  " to " +
-                  items.length +
-                  " paragraph" +
-                  (items.length === 1 ? "" : "s") +
-                  ", keeping indent and list.",
-                "ok"
-              );
+              var reattached = 0;
+              items.forEach(function (p, i) {
+                var s = saved[i];
+                var stillInList = !p.listItemOrNullObject.isNullObject;
+                if (s.inList && !stillInList && s.listId != null) {
+                  // Re-join the original list -> restores number + list indent.
+                  p.attachToList(s.listId, s.level);
+                  reattached++;
+                } else if (!s.inList) {
+                  // Non-list paragraph: restore its direct indent.
+                  p.leftIndent = s.left;
+                  p.firstLineIndent = s.first;
+                }
+              });
+              return context.sync().then(function () {
+                setStatus(
+                  "Applied " +
+                    styleName +
+                    " to " +
+                    items.length +
+                    " paragraph" +
+                    (items.length === 1 ? "" : "s") +
+                    ", keeping indent" +
+                    (reattached ? " and restoring the list numbering" : "") +
+                    ".",
+                  "ok"
+                );
+              });
             });
           });
         });

@@ -59,9 +59,11 @@ the relative/hanging indents untouched, so it never re-flows a layout you've
 already tuned. *Copy indent from selection* reads a heading's indent into the
 slider. A **Paragraph style** dropdown lists every paragraph style defined in
 the document (read via `Document.getStyles`, used styles first) and applies the
-chosen one while *preserving* the selection's indent and list — it snapshots the
-indents, applies the style, then restores them (Word's own style apply would
-reset them). Markers are classified to handle Word's
+chosen one while *preserving* the selection's number/bullet and indent — it
+snapshots each paragraph's list (id + level) and indents, applies the style,
+then re-attaches the list if the style dropped it (restoring style-linked
+heading numbers like `4.1.` and their indent) and restores direct indents
+otherwise. Markers are classified to handle Word's
 unreliable levels: **dotted numbers** (`2.1.1.`) carry their own depth and are
 trusted; **bullets** are anchored one layer below the item they follow, then
 trust Word's ilvl *relative to that anchor* — a deeper ilvl nests, a shallower
