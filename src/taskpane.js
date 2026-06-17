@@ -869,14 +869,16 @@
                 var p = items[i];
                 var stillInList = !p.listItemOrNullObject.isNullObject;
                 if (s.inList && !stillInList && s.listId != null) {
-                  // Re-join the original list -> restores number + list indent.
+                  // Re-join the original list -> restores the number/bullet.
                   p.attachToList(s.listId, s.level);
                   reattached++;
-                } else if (!s.inList) {
-                  // Non-list paragraph: restore its direct indent.
-                  p.leftIndent = s.left;
-                  p.firstLineIndent = s.first;
                 }
+                // Restore the indent for EVERY paragraph: the new style sets its
+                // own indent, so re-apply the captured (effective) one — this is
+                // what a numbered heading needs, since its indent came from the
+                // old style, not from the list.
+                p.leftIndent = s.left;
+                p.firstLineIndent = s.first;
               }
               return context.sync().then(function () {
                 setStatus(
