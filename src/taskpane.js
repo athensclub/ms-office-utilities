@@ -778,9 +778,29 @@
         var paras = styles.items.filter(function (s) {
           return s.type === Word.StyleType.paragraph;
         });
-        // In-use styles first, then alphabetical by display name.
+        // Sort: headings first (by their number), then Normal, then the rest
+        // (in-use first within the rest, then alphabetical).
+        var rankOf = function (name) {
+          var n = (name || "").toLowerCase();
+          if (/heading/.test(n)) return 0;
+          if (n === "normal") return 1;
+          return 2;
+        };
+        var headingNum = function (name) {
+          var m = (name || "").match(/\d+/);
+          return m ? parseInt(m[0], 10) : Infinity; // un-numbered headings last
+        };
         paras.sort(function (a, b) {
-          if (a.inUse !== b.inUse) return a.inUse ? -1 : 1;
+          var ra = rankOf(a.nameLocal);
+          var rb = rankOf(b.nameLocal);
+          if (ra !== rb) return ra - rb;
+          if (ra === 0) {
+            var na = headingNum(a.nameLocal);
+            var nb = headingNum(b.nameLocal);
+            if (na !== nb) return na - nb;
+          } else if (ra === 2 && a.inUse !== b.inUse) {
+            return a.inUse ? -1 : 1;
+          }
           return a.nameLocal.localeCompare(b.nameLocal);
         });
         // Rebuild options, keeping the first (placeholder) one.
