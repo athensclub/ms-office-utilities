@@ -194,6 +194,13 @@
           populateStyleDropdown(); // fill with the document's actual styles
         }
 
+        // "Highlight all (TBC)": scan the whole document body and yellow-
+        // highlight every "(TBC)" occurrence.
+        var highlightBtn = document.getElementById("highlight-tbc-button");
+        if (highlightBtn) {
+          highlightBtn.addEventListener("click", highlightTbc);
+        }
+
         updateIndentLabel();
       }
     });
@@ -919,6 +926,40 @@
         });
       })
       .catch(reportError);
+  }
+
+  /**
+   * Scan the whole document body and apply a yellow highlight to every
+   * "(TBC)" occurrence.
+   */
+  function highlightTbc() {
+    setStatus("Scanning for “(TBC)”…", "");
+    Word.run(function (context) {
+      // Literal (non-wildcard) search; parentheses match as-is.
+      var results = context.document.body.search("(TBC)", {
+        matchCase: false,
+        matchWildcards: false,
+      });
+      results.load("items");
+      return context.sync().then(function () {
+        var count = results.items.length;
+        results.items.forEach(function (r) {
+          r.font.highlightColor = "#FFFF00"; // yellow
+        });
+        return context.sync().then(function () {
+          setStatus(
+            count > 0
+              ? "Highlighted " +
+                  count +
+                  " “(TBC)” occurrence" +
+                  (count === 1 ? "" : "s") +
+                  "."
+              : "No “(TBC)” found in the document.",
+            count > 0 ? "ok" : "warn"
+          );
+        });
+      });
+    }).catch(reportError);
   }
 
   /** Shared error reporter for Office/OfficeExtension failures. */
