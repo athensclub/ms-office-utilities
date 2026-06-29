@@ -61,9 +61,11 @@ slider. A **Paragraph style** dropdown lists every paragraph style defined in
 the document (read via `Document.getStyles`, used styles first) and applies the
 chosen one while *preserving* the selection's number/bullet and indent — it
 snapshots each paragraph's list (id + level) and indents, applies the style,
-then re-attaches the list if the style dropped it (restoring style-linked
-heading numbers like `4.1.` and their indent) and restores direct indents
-otherwise. A **Highlight all "(TBC)"** button scans the whole document body and
+then forces the paragraph back to its ORIGINAL list membership — detaching from
+whatever list the new style produced and re-attaching to the original list+level
+— so the new style can neither drop the number nor re-number it (e.g. a Heading 3
+"7.3" stays "7.3" instead of becoming Heading 4's "1.4"). Indents are restored
+for every paragraph. A **Highlight all "(TBC)"** button scans the whole document body and
 applies a yellow highlight to every `(TBC)` occurrence. A **Renumber error IDs**
 tool (with a prefix input) finds every error-handling table — any table whose
 first cell reads "Error ID" — and rewrites its Error ID value (the cell to the

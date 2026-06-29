@@ -907,15 +907,21 @@
                 var s = saved[i];
                 var p = items[i];
                 var stillInList = !p.listItemOrNullObject.isNullObject;
-                if (s.inList && !stillInList && s.listId != null) {
-                  // Re-join the original list -> restores the number/bullet.
+                // Force the paragraph's ORIGINAL list membership so the new
+                // style can neither re-number it (e.g. Heading 3 "7.3" becoming
+                // Heading 4 "1.4") nor drop the number: detach from whatever
+                // list the style produced, then re-attach to the original
+                // list+level. A list item keeps its place in the original
+                // sequence; an originally-unnumbered paragraph stays unnumbered.
+                if (stillInList) {
+                  p.detachFromList();
+                }
+                if (s.inList && s.listId != null) {
                   p.attachToList(s.listId, s.level);
                   reattached++;
                 }
                 // Restore the indent for EVERY paragraph: the new style sets its
-                // own indent, so re-apply the captured (effective) one — this is
-                // what a numbered heading needs, since its indent came from the
-                // old style, not from the list.
+                // own indent, so re-apply the captured (effective) one.
                 p.leftIndent = s.left;
                 p.firstLineIndent = s.first;
               }
@@ -928,7 +934,7 @@
                     " paragraph" +
                     (n === 1 ? "" : "s") +
                     ", keeping indent" +
-                    (reattached ? " and restoring the list numbering" : "") +
+                    (reattached ? " and the original number/bullet" : "") +
                     ".",
                   "ok"
                 );
