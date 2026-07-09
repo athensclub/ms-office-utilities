@@ -838,116 +838,60 @@
 
   /**
    * Apply a paragraph style (by its display name) to the selection while
-   * PRESERVING each paragraph's number/bullet and indent. Changing a paragraph's
-   * style resets indentation and — for style/list-linked numbering like a "4.1."
-   * heading — drops the number. We snapshot each paragraph's list (id + level)
-   * and indents, apply the style, then: if the style dropped the list, re-attach
-   * it (which restores the number AND its indent); for non-list paragraphs we
-   * restore the saved direct indent.
+   * preserving each paragraph's INDENT. We deliberately do NOT touch list
+   * membership: a paragraph that carries its own (direct) numbering keeps it
+   * across a style change on its own, and any attempt to force the number back
+   * via detach/attach corrupts Word's shared list numbering (renders "%3.").
+   * So: snapshot leftIndent/firstLineIndent, apply the style, restore them.
    * @param {string} styleName the style's display name (Style.nameLocal)
    */
   function applyStylePreservingFormat(styleName) {
     setStatus("Applying " + styleName + "…", "");
-
-    // Plain-data snapshot shared between the two passes (proxies don't survive
-    // across Word.run calls, but plain JS does).
-    var saved = null;
-
-    // Pass 1: snapshot indents + list (id/level), then apply the style.
     Word.run(function (context) {
       var paragraphs = context.document.getSelection().paragraphs;
       paragraphs.load("items");
       return context.sync().then(function () {
         var items = paragraphs.items;
-        if (!items || items.length === 0) return context.sync();
+        if (!items || items.length === 0) {
+          setStatus("No text is selected. Highlight some paragraphs first.", "warn");
+          return context.sync();
+        }
+        // 1) Snapshot the indents the style is about to override.
         items.forEach(function (p) {
           p.load("leftIndent,firstLineIndent");
-          p.listOrNullObject.load("id,isNullObject");
-          p.listItemOrNullObject.load("level,isNullObject");
         });
         return context.sync().then(function () {
-          saved = items.map(function (p) {
-            var inList = !p.listOrNullObject.isNullObject;
-            return {
-              left: p.leftIndent || 0,
-              first: p.firstLineIndent || 0,
-              inList: inList,
-              listId: inList ? p.listOrNullObject.id : null,
-              level: p.listItemOrNullObject.isNullObject
-                ? 0
-                : p.listItemOrNullObject.level || 0,
-            };
+          var saved = items.map(function (p) {
+            return { left: p.leftIndent || 0, first: p.firstLineIndent || 0 };
           });
+          // 2) Apply the style.
           items.forEach(function (p) {
             p.style = styleName;
           });
-          return context.sync();
-        });
-      });
-    })
-      .then(function () {
-        if (!saved) {
-          setStatus("No text is selected. Highlight some paragraphs first.", "warn");
-          return;
-        }
-        // Pass 2: in a FRESH context (so list proxies aren't the ones the style
-        // change invalidated), restore numbering/indent.
-        return Word.run(function (context) {
-          var paragraphs = context.document.getSelection().paragraphs;
-          paragraphs.load("items");
           return context.sync().then(function () {
-            var items = paragraphs.items;
-            var n = Math.min(items.length, saved.length);
-            for (var k = 0; k < n; k++) {
-              items[k].listItemOrNullObject.load("isNullObject");
-            }
+            // 3) Restore the indents (the style overrode them). Numbering/
+            //    bullets are left exactly as the style change left them — no
+            //    list manipulation, so nothing can corrupt the shared list.
+            items.forEach(function (p, i) {
+              p.leftIndent = saved[i].left;
+              p.firstLineIndent = saved[i].first;
+            });
             return context.sync().then(function () {
-              // Force the paragraph's ORIGINAL list membership so the new style
-              // can neither re-number it (Heading 3 "7.3" -> "1.4") nor drop it.
-              // This is done in TWO separate syncs: first DETACH from whatever
-              // list the new style produced, THEN (next sync) re-attach to the
-              // original list+level. Doing both in one batch leaves Word's
-              // numbering unresolved and renders the raw "%3." template — the
-              // attach must operate on a paragraph that is already list-free.
-              for (var i = 0; i < n; i++) {
-                if (!items[i].listItemOrNullObject.isNullObject) {
-                  items[i].detachFromList();
-                }
-              }
-              return context.sync().then(function () {
-                var reattached = 0;
-                for (var j = 0; j < n; j++) {
-                  var s = saved[j];
-                  var p = items[j];
-                  if (s.inList && s.listId != null) {
-                    p.attachToList(s.listId, s.level); // now list-free -> clean
-                    reattached++;
-                  }
-                  // Restore the indent for EVERY paragraph (the new style set
-                  // its own; re-apply the captured effective one).
-                  p.leftIndent = s.left;
-                  p.firstLineIndent = s.first;
-                }
-                return context.sync().then(function () {
-                  setStatus(
-                    "Applied " +
-                      styleName +
-                      " to " +
-                      n +
-                      " paragraph" +
-                      (n === 1 ? "" : "s") +
-                      ", keeping indent" +
-                      (reattached ? " and the original number/bullet" : "") +
-                      ".",
-                    "ok"
-                  );
-                });
-              });
+              setStatus(
+                "Applied " +
+                  styleName +
+                  " to " +
+                  items.length +
+                  " paragraph" +
+                  (items.length === 1 ? "" : "s") +
+                  ", keeping indent.",
+                "ok"
+              );
             });
           });
         });
-      })
-      .catch(reportError);
+      });
+    }).catch(reportError);
   }
 
   /**
