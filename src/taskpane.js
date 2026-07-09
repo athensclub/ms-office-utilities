@@ -902,42 +902,46 @@
               items[k].listItemOrNullObject.load("isNullObject");
             }
             return context.sync().then(function () {
-              var reattached = 0;
+              // Force the paragraph's ORIGINAL list membership so the new style
+              // can neither re-number it (Heading 3 "7.3" -> "1.4") nor drop it.
+              // This is done in TWO separate syncs: first DETACH from whatever
+              // list the new style produced, THEN (next sync) re-attach to the
+              // original list+level. Doing both in one batch leaves Word's
+              // numbering unresolved and renders the raw "%3." template — the
+              // attach must operate on a paragraph that is already list-free.
               for (var i = 0; i < n; i++) {
-                var s = saved[i];
-                var p = items[i];
-                var stillInList = !p.listItemOrNullObject.isNullObject;
-                // Force the paragraph's ORIGINAL list membership so the new
-                // style can neither re-number it (e.g. Heading 3 "7.3" becoming
-                // Heading 4 "1.4") nor drop the number: detach from whatever
-                // list the style produced, then re-attach to the original
-                // list+level. A list item keeps its place in the original
-                // sequence; an originally-unnumbered paragraph stays unnumbered.
-                if (stillInList) {
-                  p.detachFromList();
+                if (!items[i].listItemOrNullObject.isNullObject) {
+                  items[i].detachFromList();
                 }
-                if (s.inList && s.listId != null) {
-                  p.attachToList(s.listId, s.level);
-                  reattached++;
-                }
-                // Restore the indent for EVERY paragraph: the new style sets its
-                // own indent, so re-apply the captured (effective) one.
-                p.leftIndent = s.left;
-                p.firstLineIndent = s.first;
               }
               return context.sync().then(function () {
-                setStatus(
-                  "Applied " +
-                    styleName +
-                    " to " +
-                    n +
-                    " paragraph" +
-                    (n === 1 ? "" : "s") +
-                    ", keeping indent" +
-                    (reattached ? " and the original number/bullet" : "") +
-                    ".",
-                  "ok"
-                );
+                var reattached = 0;
+                for (var j = 0; j < n; j++) {
+                  var s = saved[j];
+                  var p = items[j];
+                  if (s.inList && s.listId != null) {
+                    p.attachToList(s.listId, s.level); // now list-free -> clean
+                    reattached++;
+                  }
+                  // Restore the indent for EVERY paragraph (the new style set
+                  // its own; re-apply the captured effective one).
+                  p.leftIndent = s.left;
+                  p.firstLineIndent = s.first;
+                }
+                return context.sync().then(function () {
+                  setStatus(
+                    "Applied " +
+                      styleName +
+                      " to " +
+                      n +
+                      " paragraph" +
+                      (n === 1 ? "" : "s") +
+                      ", keeping indent" +
+                      (reattached ? " and the original number/bullet" : "") +
+                      ".",
+                    "ok"
+                  );
+                });
               });
             });
           });
