@@ -61,12 +61,13 @@ slider. A **Paragraph style** dropdown lists every paragraph style defined in
 the document (read via `Document.getStyles`, used styles first) and applies the
 chosen one while *preserving* the selection's number/bullet and indent — it
 snapshots each paragraph's list (id + level) and indents, applies the style,
-then restores the indents, and — only where the style *dropped* the number
-(the paragraph is now list-free) — re-attaches the original list at its
-original level to bring the number back. It only ever **attaches**, never
-detaches: detaching corrupts Word's shared list numbering. So if the new style
-carries its own numbering (e.g. a built-in heading), that number is left as-is
-rather than forced back. A **Highlight all "(TBC)"** button scans the whole document body and
+then restores the indents. It deliberately does **not** touch list membership:
+the Office.js list APIs (`attachToList`/`detachFromList`) corrupt some
+documents' shared list numbering (rendering a raw `%3.` template), and that
+can't be validated without a live Word host — so the tool stays strictly
+non-destructive and leaves numbering to Word. A number that the style changes or
+drops is not restored (out of scope until it can be developed against a real
+Word host). A **Highlight all "(TBC)"** button scans the whole document body and
 applies a yellow highlight to every `(TBC)` occurrence. A **Renumber error IDs**
 tool (with a prefix input) finds every error-handling table — any table whose
 first cell reads "Error ID" — and rewrites its Error ID value (the cell to the
