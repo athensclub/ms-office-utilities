@@ -838,60 +838,105 @@
 
   /**
    * Apply a paragraph style (by its display name) to the selection while
-   * preserving each paragraph's INDENT. We deliberately do NOT touch list
-   * membership: a paragraph that carries its own (direct) numbering keeps it
-   * across a style change on its own, and any attempt to force the number back
-   * via detach/attach corrupts Word's shared list numbering (renders "%3.").
-   * So: snapshot leftIndent/firstLineIndent, apply the style, restore them.
+   * preserving each paragraph's indent and — when possible — its number/bullet.
+   *
+   * Applying a style strips a paragraph's direct numbering. To keep it we
+   * snapshot the original list (id + level), apply the style, and if the style
+   * DROPPED the number (the paragraph is now list-free) we re-attach the
+   * original list at its original level. We only ever ATTACH (never detach):
+   * detaching corrupts Word's shared list numbering (it rendered the raw "%3."
+   * template and broke every item in that list). Consequently, if the new
+   * style keeps its OWN numbering (e.g. a built-in heading), that number is
+   * left as-is rather than forced back — forcing it is what corrupts.
    * @param {string} styleName the style's display name (Style.nameLocal)
    */
   function applyStylePreservingFormat(styleName) {
     setStatus("Applying " + styleName + "…", "");
+    var saved = null;
+
+    // Pass 1: snapshot indents + list (id/level), then apply the style.
     Word.run(function (context) {
       var paragraphs = context.document.getSelection().paragraphs;
       paragraphs.load("items");
       return context.sync().then(function () {
         var items = paragraphs.items;
-        if (!items || items.length === 0) {
-          setStatus("No text is selected. Highlight some paragraphs first.", "warn");
-          return context.sync();
-        }
-        // 1) Snapshot the indents the style is about to override.
+        if (!items || items.length === 0) return context.sync();
         items.forEach(function (p) {
           p.load("leftIndent,firstLineIndent");
+          p.listOrNullObject.load("id,isNullObject");
+          p.listItemOrNullObject.load("level,isNullObject");
         });
         return context.sync().then(function () {
-          var saved = items.map(function (p) {
-            return { left: p.leftIndent || 0, first: p.firstLineIndent || 0 };
+          saved = items.map(function (p) {
+            var inList = !p.listOrNullObject.isNullObject;
+            return {
+              left: p.leftIndent || 0,
+              first: p.firstLineIndent || 0,
+              inList: inList,
+              listId: inList ? p.listOrNullObject.id : null,
+              level: p.listItemOrNullObject.isNullObject
+                ? 0
+                : p.listItemOrNullObject.level || 0,
+            };
           });
-          // 2) Apply the style.
           items.forEach(function (p) {
             p.style = styleName;
           });
+          return context.sync();
+        });
+      });
+    })
+      .then(function () {
+        if (!saved) {
+          setStatus("No text is selected. Highlight some paragraphs first.", "warn");
+          return;
+        }
+        // Pass 2 (fresh context so list proxies reflect the post-style state):
+        // re-attach the original list ONLY where the style dropped the number.
+        return Word.run(function (context) {
+          var paragraphs = context.document.getSelection().paragraphs;
+          paragraphs.load("items");
           return context.sync().then(function () {
-            // 3) Restore the indents (the style overrode them). Numbering/
-            //    bullets are left exactly as the style change left them — no
-            //    list manipulation, so nothing can corrupt the shared list.
-            items.forEach(function (p, i) {
-              p.leftIndent = saved[i].left;
-              p.firstLineIndent = saved[i].first;
-            });
+            var items = paragraphs.items;
+            var n = Math.min(items.length, saved.length);
+            for (var k = 0; k < n; k++) {
+              items[k].listItemOrNullObject.load("isNullObject");
+            }
             return context.sync().then(function () {
-              setStatus(
-                "Applied " +
-                  styleName +
-                  " to " +
-                  items.length +
-                  " paragraph" +
-                  (items.length === 1 ? "" : "s") +
-                  ", keeping indent.",
-                "ok"
-              );
+              var restored = 0;
+              for (var i = 0; i < n; i++) {
+                var s = saved[i];
+                var p = items[i];
+                var nowInList = !p.listItemOrNullObject.isNullObject;
+                // Attach-only: the style dropped the number and the paragraph
+                // is list-free -> safely re-join its original list+level (this
+                // is the path that cleanly restored "4.1"). Never detach.
+                if (s.inList && !nowInList && s.listId != null) {
+                  p.attachToList(s.listId, s.level);
+                  restored++;
+                }
+                p.leftIndent = s.left;
+                p.firstLineIndent = s.first;
+              }
+              return context.sync().then(function () {
+                setStatus(
+                  "Applied " +
+                    styleName +
+                    " to " +
+                    n +
+                    " paragraph" +
+                    (n === 1 ? "" : "s") +
+                    ", keeping indent" +
+                    (restored ? " and restoring the dropped number/bullet" : "") +
+                    ".",
+                  "ok"
+                );
+              });
             });
           });
         });
-      });
-    }).catch(reportError);
+      })
+      .catch(reportError);
   }
 
   /**
